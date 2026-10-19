@@ -57,10 +57,11 @@ export default async function concat(project) {
   }
   writeJson(project.path('words-frames.json'), { fps, frames: dst, words });
   progress(80, 'Nähte messen');
-  const met = await measureSeams(out, cutMap, { fps, floor: th.floor, hopMs: prof.hopMs, sampleRate: prof.sampleRate });
+  const H = prof.seam[prof.seam.haerte] || prof.seam.hart;
+  const met = await measureSeams(out, cutMap, { fps, floor: th.floor, hopMs: prof.hopMs, sampleRate: prof.sampleRate, corridorMs: H.corridorMs, hart: prof.seam.haerte === 'hart' });
   const wpm = met.durationSec ? Math.round(words.length / met.durationSec * 60) : 0;
-  writeJson(project.path('check/seams.json'), { ...met, wpm, words: words.length });
+  writeJson(project.path('check/seams.json'), { haerte: prof.seam.haerte, corridorMs: H.corridorMs, ...met, wpm, words: words.length });
   const summary = { seconds: met.durationSec, frames: dst, segments: segs.length, seams: met.nSeams, hardSeams: met.hardSeams, inCorridor: met.inCorridor, medianSeamMs: met.medianMs, startsHot: met.startsHot.length, endsHot: met.endsHot.length, silenceSec: met.silenceSec, wpm };
-  log(`cut: ${summary.seconds}s · ${summary.segments} Segmente · ${met.hardSeams} harte Nähte · weiche Nähte ${met.inCorridor}/${met.nSeams} im Korridor (Median ${met.medianMs} ms) · Anlaut heiß ${met.startsHot.length} · Auslaut heiß ${met.endsHot.length} · Stille ${met.silenceSec}s · ${wpm} WPM`);
+  log(`cut (${prof.seam.haerte}): ${summary.seconds}s · ${summary.segments} Segmente · Nähte ${met.inCorridor}/${met.nSeams} im Korridor ${H.corridorMs[0]}–${H.corridorMs[1]} ms (Median ${met.medianMs} ms)${prof.seam.haerte === 'hart' ? '' : ` · Anlaut heiß ${met.startsHot.length} · Auslaut heiß ${met.endsHot.length}`} · Stille ${met.silenceSec}s · ${wpm} WPM`);
   return { summary };
 }

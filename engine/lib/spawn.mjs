@@ -22,7 +22,7 @@ export function spawnStage(cmd, args, onLine, signal, { cwd, env } = {}) {
     child.on('close', (code) => {
       if (buf.trim()) { try { onLine?.(buf); } catch { /* ignore */ } }
       if (code === 0) finish(resolve, undefined);
-      else finish(reject, new Error(`${cmd} exit ${code}: ${err.trim().split('\n').slice(-3).join(' ').slice(0, 300)}`));
+      else { const lines = err.trim().split('\n'); const hit = lines.find((l) => /Error|error:|✗/.test(l)) || lines.slice(-3).join(' '); finish(reject, new Error(`${cmd} exit ${code}: ${hit.slice(0, 300)}`)); }
     });
     child.on('error', (e) => finish(reject, new Error(String(e?.message || e))));
   });

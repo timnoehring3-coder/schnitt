@@ -2,7 +2,7 @@
 import { pcmFloat } from '../lib/ffmpeg.mjs';
 import { computeRms } from '../audio/rms.mjs';
 
-export async function measureSeams(cameraFile, cutMap, { fps, floor, hopMs = 10, sampleRate = 16000, corridorMs = [100, 220] } = {}) {
+export async function measureSeams(cameraFile, cutMap, { fps, floor, hopMs = 10, sampleRate = 16000, corridorMs = [100, 220], hart = false } = {}) {
   const pcm = await pcmFloat(cameraFile, sampleRate);
   const db = computeRms(pcm, sampleRate, { hopMs, winMs: 20 });
   const quiet = floor + 8, hot = floor + 12, tail = floor + 8;
@@ -25,8 +25,8 @@ export async function measureSeams(cameraFile, cutMap, { fps, floor, hopMs = 10,
   const starts = [], ends = [];
   for (const seg of cutMap) {
     const s = hopOf(seg.dstIn), e = hopOf(seg.dstOut);
-    const startsHot = !seg.hardIn && db[s] > hot && db[s + 1] > hot;
-    const endsHot = !seg.hardOut && db[e - 1] > tail && db[e - 2] > tail;
+    const startsHot = !hart && !seg.hardIn && db[s] > hot && db[s + 1] > hot;
+    const endsHot = !hart && !seg.hardOut && db[e - 1] > tail && db[e - 2] > tail;
     if (startsHot) starts.push(seg.block);
     if (endsHot) ends.push(seg.block);
   }

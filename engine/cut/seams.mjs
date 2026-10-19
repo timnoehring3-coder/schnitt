@@ -49,22 +49,33 @@ export default async function seams(project) {
       const onset = findOnset(db, onLo, toHop(startSec) + ms(S.onsetSearchMs[1]), { on: th.on, flankDb: S.flankDb });
       const onsetHop = onset ?? toHop(startSec);
       if (onset !== null && db[onsetHop] - db[onsetHop - 2] >= S.flankDb) flanks++;
-      let inF = Math.floor(hopSec(onsetHop) * fps) - S.leadFrames;
+      const H = S[S.haerte] || S.hart;
+      // hart (Tims Handschrift, gemessen an cut2.mp4): Einstieg 1 Frame NACH dem Flankenbeginn, kein Vorlauf
+      let inF = S.haerte === 'hart' ? Math.floor(hopSec(onsetHop) * fps) + H.leadFrames : Math.floor(hopSec(onsetHop) * fps) - H.leadFrames;
       if (prevSameBlock) inF = Math.max(inF, Math.ceil(prevW.t1 * fps));
       // Ausstieg: letzter Hop über `off` vor dem Nachbarwort/-block
       const offHi = Math.min(toHop(endSec) + ms(S.offsetSearchMs[1]), nextSameBlock ? toHop(nextW.t0) - 1 : nextBlk ? toHop(nextBlk.t0) - 2 : Infinity);
       const offset = findOffset(db, toHop(endSec) + ms(S.offsetSearchMs[0]), offHi, { off: th.off });
       const offsetHop = offset ?? Math.min(toHop(endSec), offHi);
-      let outF = Math.ceil(hopSec(offsetHop) * fps) + S.tailFrames;
-      const br = findBreath(pcm, db, offsetHop + 1, toHop(outF / fps) + ms(200), { sampleRate: prof.sampleRate, hopMs, floor: th.floor, ...B });
-      let breath = null;
-      if (br && Math.floor(hopSec(br.h0) * fps) < outF) { outF = Math.max(Math.ceil(hopSec(offsetHop) * fps) + 1, Math.floor(hopSec(br.h0) * fps)); breath = { t0: +hopSec(br.h0).toFixed(3), t1: +hopSec(br.h1).toFixed(3) }; breaths++; }
+      let outF, breath = null, decayHop = null;
+      if (S.haerte === 'hart') {
+        // Ausstieg im Ausklang: Gipfel der letzten decaySearchMs vor dem Offset, dann erster Hop ≥ decayDb darunter
+        const lo = Math.max(onsetHop + 5, offsetHop - ms(H.decaySearchMs));
+        let peakHop = lo; for (let x = lo; x <= offsetHop; x++) if (db[x] > db[peakHop]) peakHop = x;
+        decayHop = offsetHop;
+        for (let x = peakHop; x <= offsetHop; x++) if (db[x] < db[peakHop] - H.decayDb) { decayHop = x; break; }
+        outF = Math.ceil(hopSec(decayHop) * fps);
+      } else {
+        outF = Math.ceil(hopSec(offsetHop) * fps) + H.tailFrames;
+        const br = findBreath(pcm, db, offsetHop + 1, toHop(outF / fps) + ms(200), { sampleRate: prof.sampleRate, hopMs, floor: th.floor, ...B });
+        if (br && Math.floor(hopSec(br.h0) * fps) < outF) { outF = Math.max(Math.ceil(hopSec(offsetHop) * fps) + 1, Math.floor(hopSec(br.h0) * fps)); breath = { t0: +hopSec(br.h0).toFixed(3), t1: +hopSec(br.h1).toFixed(3) }; breaths++; }
+      }
       if (nextSameBlock) outF = Math.min(outF, Math.floor(nextW.t0 * fps));
       else if (nextBlk) outF = Math.min(outF, Math.floor(nextBlk.t0 * fps) - 1);
       if (k > 0) inF = Math.max(inF, sel.segments[k - 1].out);
       inF = Math.max(0, inF);
-      if (outF <= inF) outF = inF + 1;
-      sel.segments.push({ block: r.block, words: r.a != null ? [r.a, r.b] : null, in: inF, out: outF, inSec: +(inF / fps).toFixed(3), outSec: +(outF / fps).toFixed(3), onsetSec: +hopSec(onsetHop).toFixed(3), offsetSec: +hopSec(offsetHop).toFixed(3), breath, hardIn: Boolean(prevSameBlock), hardOut: Boolean(nextSameBlock) });
+      if (outF < inF + 3) outF = inF + 3;
+      sel.segments.push({ block: r.block, words: r.a != null ? [r.a, r.b] : null, in: inF, out: outF, inSec: +(inF / fps).toFixed(3), outSec: +(outF / fps).toFixed(3), onsetSec: +hopSec(onsetHop).toFixed(3), offsetSec: +hopSec(offsetHop).toFixed(3), decaySec: decayHop != null ? +hopSec(decayHop).toFixed(3) : null, breath, hardIn: Boolean(prevSameBlock), hardOut: Boolean(nextSameBlock) });
       n++;
     }
     sel.in = sel.segments[0].in; sel.out = sel.segments[sel.segments.length - 1].out;
@@ -73,6 +84,6 @@ export default async function seams(project) {
   writeJson(project.path('selects.json'), sj);
   const summary = { segments: n, flanks, breaths, frames: enabled.reduce((s, x) => s + x.segments.reduce((a, g) => a + (g.out - g.in), 0), 0) };
   summary.seconds = +(summary.frames / fps).toFixed(2);
-  log(`seams: ${n} Segmente · ${flanks} Flanken erkannt · ${breaths} Atemzüge abgeschnitten · ${summary.seconds}s`);
+  log(`seams (${S.haerte}): ${n} Segmente · ${flanks} Flanken erkannt · ${breaths} Atemzüge abgeschnitten · ${summary.seconds}s`);
   return { summary };
 }
