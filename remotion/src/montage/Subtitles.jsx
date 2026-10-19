@@ -10,7 +10,7 @@ export function Subtitles({ pages, chin, style }) {
   const frame = useCurrentFrame();
   const page = pages.find((p) => frame >= p.f0 && frame < p.f1);
   if (!page) return null;
-  const seg = chin?.segments?.[page.segment];
+  const seg = chin?.segments?.[page.piece ?? page.segment];
   const chinY = seg?.chinY ?? chin?.median ?? 0.62;
   const top = Math.max(SUBTITLE.minTop, Math.round(chinY * H) + SUBTITLE.belowChinPx);
   const opacity = interpolate(frame - page.f0, [0, SUBTITLE.fadeFrames], [0, 1], { extrapolateRight: 'clamp' });

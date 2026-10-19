@@ -36,6 +36,11 @@ export default async function seams(project) {
       }
     } else for (const id of sel.blockIds) runs.push({ block: id, a: null, b: null });
     if (sel.locked && Array.isArray(sel.segments) && sel.segments.length) { n += sel.segments.length; continue; }   // Hand-Kanten aus dem Take-Picker
+    if (sel.seamMode === 'keep') {   // durchreichen: Kanten = Select-Grenzen, framegenau
+      const inF = Math.round(sel.t0 * fps), outF = Math.max(inF + 1, Math.round(sel.t1 * fps));
+      sel.segments = [{ block: sel.blockIds[0] ?? null, words: sel.words, in: inF, out: outF, inSec: +(inF / fps).toFixed(3), outSec: +(outF / fps).toFixed(3), onsetSec: sel.t0, offsetSec: sel.t1, decaySec: null, breath: null, hardIn: false, hardOut: false, keep: true }];
+      n++; continue;
+    }
     sel.segments = [];
     for (let k = 0; k < runs.length; k++) {
       const r = runs[k];

@@ -1,0 +1,1 @@
+export default function Page() { return <main><h1>Datenschutz</h1><p className="muted">Wird vor dem Start befüllt. Die Seite setzt keine Cookies; Zahlung und Lizenzprüfung laufen über Lemon Squeezy.</p></main>; }

@@ -142,7 +142,11 @@ export default async function takesStep(project) {
   const kind = project.json.source.kind;
   progress(20, 'Versuche');
   let selects, groups = [];
-  if (kind === 'cut') {
+  if (kind === 'cut' && !prof.typB?.normalize) {
+    // fertig geschnitten: nichts kürzen, nichts umstellen — die Lieferung wird durchgereicht (Klebestellen misst `splices`)
+    const dur = project.json.source.duration;
+    selects = [{ id: 'S1', group: 0, blockIds: bj.blocks.map((b) => b.id), words: ws.words.length ? [0, ws.words.length - 1] : null, text: bj.blocks.map((b) => b.text || '').join(' ').trim(), nWords: ws.words.length, t0: 0, t1: dur, dur, enabled: true, order: 0, seamMode: 'keep', score: 1, reason: 'fertig geschnitten, durchgereicht' }];
+  } else if (kind === 'cut') {
     selects = bj.blocks.map((b, i) => {
       const idx = ws.words.map((w, k) => (w.block === b.id ? k : -1)).filter((k) => k >= 0);
       return { id: `S${i + 1}`, group: i, blockIds: [b.id], words: idx.length ? [idx[0], idx[idx.length - 1]] : null, text: b.text || '', nWords: b.nWords || 0, t0: b.t0, t1: b.t1, enabled: true, order: i, seamMode: 'normalize', score: 1, reason: 'fertig geschnitten' };

@@ -3,6 +3,7 @@
 // maxHoldFrames über sein Ende hinaus; Mindestdauer minFrames (sonst flackert es — Wörter < minFrames werden mit
 // dem Nachbarn zusammengelegt, wie in Tims align-words.py).
 import { readJson, writeJson } from '../lib/project.mjs';
+import { existsSync } from 'node:fs';
 import { progress, log } from '../lib/progress.mjs';
 
 export function buildPages(words, { minFrames = 6, maxHoldFrames = 12, segmentBreaks = [] } = {}) {
@@ -31,7 +32,8 @@ export default async function untertitel(project) {
   progress(20, 'Seiten');
   const pages = buildPages(wf.words);
   // Segment-Index je Seite (für die Kinnhöhe)
-  for (const p of pages) p.segment = cm.segments.findIndex((s) => p.f0 >= s.dstIn && p.f0 < s.dstOut);
+  const chin = existsSync(project.path('chin.json')) ? readJson(project.path('chin.json')) : null;
+  for (const p of pages) { p.segment = cm.segments.findIndex((s) => p.f0 >= s.dstIn && p.f0 < s.dstOut); p.piece = chin ? chin.segments.findIndex((s) => p.f0 >= s.dstIn && p.f0 < s.dstOut) : p.segment; }
   const existing = project.path('texte.json');
   let texte = {};
   try { texte = readJson(existing); } catch { /* neu */ }
