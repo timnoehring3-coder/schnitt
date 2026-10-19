@@ -42,25 +42,29 @@ export default async function transcribe(project) {
   const par = Math.max(1, prof.asr.parallel || 2);
   const queues = Array.from({ length: par }, (_, i) => blocks.filter((_, k) => k % par === i));
   await Promise.all(queues.map(worker));
-  // Dubletten an Blockgrenzen: das Kontext-Pad lässt Whisper den Satzrest des Nachbarblocks mithören. Überlappt das
-  // Ende von Block k mit dem Anfang von k+1 (bis 4 Wörter, unscharf), bleibt das Wort dort, wo es laut Whisper-Zeit liegt.
+  // Pad-Mitschnitt: das Kontext-Pad lässt Whisper den Satzrest des Nachbarblocks mithören. Bereinigt wird nur dort,
+  // wo das Pad wirklich in den Nachbarblock reicht (Lücke < Pad) — bei größeren Lücken ist gleicher Wortlaut ein
+  // Neuansatz (Roh-Take) und bleibt. Gleicher Wortlaut am Ende von A und Anfang von B (bis 4 Wörter, unscharf): die
+  // Wörter bleiben auf der Seite, auf der Whisper sie zeitlich verortet (A's Pad nach Blockende → aus A; sonst aus B).
+  // Gemessen (dreiskills 125 Wörter): so |Δ| Median 3 F, p90 8 F; ein zusätzlicher Zeitschnitt an den Whisper-Zeiten
+  // löschte doppelt (122 Wörter), Dedupe über alle Lücken kostete bei arcads 3 von 16 Take-Treffern.
   let dupes = 0;
-  for (let k = 0; k + 1 < blocks.length; k++) {
+  if (prof.asr.dedupe !== false) for (let k = 0; k + 1 < blocks.length; k++) {
     const A = results[blocks[k].id]?.pre, B = results[blocks[k + 1].id]?.pre;
-    if (!A?.length || !B?.length || blocks[k + 1].t0 - blocks[k].t1 > 2 * pad + 0.5) continue;
+    if (!A?.length || !B?.length || blocks[k + 1].t0 - blocks[k].t1 >= pad) continue;
     const same = (x, y) => normTok(x.w) === normTok(y.w) || simRatio(normTok(x.w), normTok(y.w)) >= 0.8;
     let m = 0;
-    for (let n = Math.min(4, A.length, B.length); n >= 1; n--) { let ok = true; for (let i = 0; i < n; i++) if (!same(A[A.length - n + i], B[i])) { ok = false; break; } if (ok) { m = n; break; } }
+    for (let n = Math.min(4, A.length - 1, B.length - 1); n >= 1; n--) { let ok = true; for (let i = 0; i < n; i++) if (!same(A[A.length - n + i], B[i])) { ok = false; break; } if (ok) { m = n; break; } }
     if (!m) continue;
     const tail = A.slice(A.length - m);
-    const beyond = tail.filter((w) => w.t0 > blocks[k].t1 + 0.03).length;    // laut Whisper erst nach Blockende gesprochen
+    const beyond = tail.filter((w) => w.t0 > blocks[k].t1 + 0.03).length;
     if (beyond * 2 >= m) A.splice(A.length - m, m); else B.splice(0, m);
     dupes += m;
   }
   for (const b of blocks) {
     const r = results[b.id]; if (!r) continue;
     const a = Math.round(b.t0 * 1000 / hopMs), e = Math.round(b.t1 * 1000 / hopMs);
-    const aligned = alignWords(r.pre, db, a, e, { hopMs });
+    const aligned = alignWords(r.pre, db, a, e, { hopMs, hybrid: prof.asr.hybridTimes !== false });
     r.words = aligned.map((w) => ({ w: w.w, t0: +(w.h0 * hopMs / 1000).toFixed(3), t1: +(w.h1 * hopMs / 1000).toFixed(3), p: w.p ?? null, block: b.id, take: b.take, ...(w.fixed ? { fixed: true } : {}), ...(w.byWhisper ? { byWhisper: true } : {}) }));
   }
   const words = results.flatMap((r) => r?.words || []);
@@ -74,6 +78,6 @@ export default async function transcribe(project) {
   const loops = blockInfo.reduce((s, b) => s + b.flags.filter((f) => f.rule === 'loop').length, 0);
   const empty = blockInfo.filter((b) => !b.nWords).length;
   const summary = { words: words.length, blocks: blocks.length, emptyBlocks: empty, loops, dupes, namesFixed: blockInfo.reduce((s, b) => s + b.fixed, 0) };
-  log(`asr: ${summary.words} Wörter · ${empty} leere Blöcke · ${loops} Schleifen entfernt · ${dupes} Dubletten an Blockgrenzen · ${summary.namesFixed} Namen korrigiert`);
+  log(`asr: ${summary.words} Wörter · ${empty} leere Blöcke · ${loops} Schleifen entfernt · ${dupes} Pad-Wörter entfernt · ${summary.namesFixed} Namen korrigiert`);
   return { summary };
 }

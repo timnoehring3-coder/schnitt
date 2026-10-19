@@ -12,7 +12,7 @@ export function weight(w) {
  * words: [{w}], a/b: Hop-Indizes der Sprechspanne, rms: Kurve. Liefert [{w, h0, h1}] (Hops).
  * Grenzen nur zwischen Wörtern; die erste beginnt bei a, die letzte endet bei b.
  */
-export function alignWords(words, rms, a, b, { hopMs = 10, snapHops = 12 } = {}) {
+export function alignWords(words, rms, a, b, { hopMs = 10, snapHops = 12, hybrid = true } = {}) {
   if (!words.length) return [];
   const W = words.map((w) => weight(w.w));
   const total = W.reduce((s, x) => s + x, 0);
@@ -23,7 +23,7 @@ export function alignWords(words, rms, a, b, { hopMs = 10, snapHops = 12 } = {})
   const hasTimes = words.every((w) => Number.isFinite(w.t0) && Number.isFinite(w.t1));
   const mono = hasTimes && words.every((w, i) => i === 0 || w.t0 >= words[i - 1].t0 - 0.02);
   const span = hasTimes ? last - first : 0, blockSec = (b - a) * hopMs / 1000;
-  const useWhisper = hasTimes && mono && words.length >= 3 && span > 0 && span / blockSec >= 0.7 && span / blockSec <= 1.3;
+  const useWhisper = hybrid && hasTimes && mono && words.length >= 3 && span > 0 && span / blockSec >= 0.7 && span / blockSec <= 1.3;
   const bounds = [a];
   let acc = 0;
   for (let t = 0; t < words.length - 1; t++) {

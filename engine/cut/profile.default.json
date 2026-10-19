@@ -5,7 +5,7 @@
   "takes":  { "takeGapMs": 750, "sentenceSim": 0.6, "stallMs": 400,
               "rejectWords": ["nein", "blöd", "nochmal", "noch mal", "fristblatt", "scheiße", "mist", "digger", "nee", "ne nochmal"],
               "acceptWords": ["geht doch", "passt", "gut so", "das war's"] },
-  "asr":    { "model": "ggml-large-v3-turbo.bin", "lang": "de", "dtw": true, "parallel": 2,
+  "asr":    { "model": "ggml-large-v3-turbo.bin", "lang": "de", "dtw": true, "parallel": 2, "dedupe": true, "hybridTimes": true,
               "prompt": [], "dropWordMs": 1, "maxWordMs": 1500, "names": {} },
   "seam":   { "haerte": "hart",
               "hart":  { "leadFrames": 1, "decayDb": 25, "decaySearchMs": 500, "corridorMs": [0, 80] },
