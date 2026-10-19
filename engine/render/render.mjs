@@ -6,8 +6,10 @@ import { parseLine, progress, log } from '../lib/progress.mjs';
 import { REMOTION_ROOT } from '../lib/paths.mjs';
 import { resolve } from 'node:path';
 import { probe } from '../lib/ffmpeg.mjs';
+import { ensureLicensed } from '../lib/license.mjs';
 
 export default async function render(project, opts = {}) {
+  await ensureLicensed('Render');
   const props = compileMontage(project);
   const out = project.path('out/final.mp4');
   let res = null;

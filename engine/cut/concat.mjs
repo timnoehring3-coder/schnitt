@@ -5,8 +5,10 @@ import { run } from '../lib/spawn.mjs';
 import { loadCutProfile } from './profile.mjs';
 import { measureSeams } from './metrics.mjs';
 import { progress, log } from '../lib/progress.mjs';
+import { ensureLicensed } from '../lib/license.mjs';
 
 export default async function concat(project) {
+  await ensureLicensed('Schnitt');
   const prof = loadCutProfile(project);
   const fps = project.json.fps;
   const sj = readJson(project.path('selects.json'));

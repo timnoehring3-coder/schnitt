@@ -3,6 +3,16 @@
 Automatischer Shorts-Schnitt als Claude-Code-Plugin mit lokalem Dashboard: Pausen raus, Takes wählen,
 Untertitel, Motion-Graphics, Render — alles auf deinem Mac, nichts verlässt den Rechner.
 
+## Installation (Claude Code)
+
+```
+/plugin install schnitt --marketplace timnoehring3-coder/schnitt-marketplace
+/schnitt:setup
+/schnitt:lizenz <KEY>
+```
+
+Ausführlich in `docs/INSTALL.md`. Lizenz: Quellcode einsehbar (PolyForm Noncommercial), Nutzung mit Schlüssel.
+
 ## Aufbau
 
 - `engine/` — Node-22-Engine. Eine CLI (`engine/cli.mjs`), die Dashboard und Claude gleichermaßen rufen.
