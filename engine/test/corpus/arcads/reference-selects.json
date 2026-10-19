@@ -1,0 +1,177 @@
+{
+ "fps": 30,
+ "cutFrames": 1733,
+ "splices": [
+  0,
+  62,
+  72,
+  76,
+  80,
+  84,
+  88,
+  92,
+  96,
+  100,
+  104,
+  108,
+  112,
+  116,
+  120,
+  124,
+  128,
+  336,
+  580,
+  659,
+  737,
+  828,
+  935,
+  1157,
+  1398,
+  1469,
+  1547,
+  1655,
+  1733
+ ],
+ "pieces": [
+  {
+   "dstIn": 0,
+   "dstOut": 31,
+   "srcIn": 13508,
+   "srcOut": 13539,
+   "score": 0.713
+  },
+  {
+   "dstIn": 31,
+   "dstOut": 62,
+   "srcIn": 252,
+   "srcOut": 283,
+   "score": 0.788
+  },
+  {
+   "dstIn": 62,
+   "dstOut": 72,
+   "srcIn": 7487,
+   "srcOut": 7497,
+   "score": 0.9
+  },
+  {
+   "dstIn": 128,
+   "dstOut": 336,
+   "srcIn": 992,
+   "srcOut": 1200,
+   "score": 0.96
+  },
+  {
+   "dstIn": 336,
+   "dstOut": 458,
+   "srcIn": 2730,
+   "srcOut": 2852,
+   "score": 1
+  },
+  {
+   "dstIn": 458,
+   "dstOut": 489,
+   "srcIn": 5743,
+   "srcOut": 5774,
+   "score": 0.656
+  },
+  {
+   "dstIn": 489,
+   "dstOut": 580,
+   "srcIn": 3306,
+   "srcOut": 3397,
+   "score": 1
+  },
+  {
+   "dstIn": 580,
+   "dstOut": 659,
+   "srcIn": 4360,
+   "srcOut": 4439,
+   "score": 1
+  },
+  {
+   "dstIn": 659,
+   "dstOut": 737,
+   "srcIn": 4756,
+   "srcOut": 4834,
+   "score": 0.951
+  },
+  {
+   "dstIn": 737,
+   "dstOut": 828,
+   "srcIn": 4919,
+   "srcOut": 5010,
+   "score": 0.999
+  },
+  {
+   "dstIn": 828,
+   "dstOut": 935,
+   "srcIn": 6581,
+   "srcOut": 6688,
+   "score": 0.971
+  },
+  {
+   "dstIn": 935,
+   "dstOut": 963,
+   "srcIn": 6816,
+   "srcOut": 6844,
+   "score": 0.975
+  },
+  {
+   "dstIn": 963,
+   "dstOut": 991,
+   "srcIn": 12086,
+   "srcOut": 12114,
+   "score": 0.649
+  },
+  {
+   "dstIn": 991,
+   "dstOut": 1102,
+   "srcIn": 7129,
+   "srcOut": 7240,
+   "score": 1
+  },
+  {
+   "dstIn": 1102,
+   "dstOut": 1157,
+   "srcIn": 7442,
+   "srcOut": 7497,
+   "score": 0.965
+  },
+  {
+   "dstIn": 1157,
+   "dstOut": 1398,
+   "srcIn": 10973,
+   "srcOut": 11214,
+   "score": 0.996
+  },
+  {
+   "dstIn": 1398,
+   "dstOut": 1469,
+   "srcIn": 12491,
+   "srcOut": 12562,
+   "score": 0.989
+  },
+  {
+   "dstIn": 1469,
+   "dstOut": 1547,
+   "srcIn": 12720,
+   "srcOut": 12798,
+   "score": 0.978
+  },
+  {
+   "dstIn": 1547,
+   "dstOut": 1655,
+   "srcIn": 13491,
+   "srcOut": 13599,
+   "score": 0.981
+  },
+  {
+   "dstIn": 1655,
+   "dstOut": 1733,
+   "srcIn": 14261,
+   "srcOut": 14339,
+   "score": 0.99
+  }
+ ]
+}

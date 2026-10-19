@@ -17,15 +17,22 @@ export function alignWords(words, rms, a, b, { hopMs = 10, snapHops = 12 } = {})
   const W = words.map((w) => weight(w.w));
   const total = W.reduce((s, x) => s + x, 0);
   const d = dips(rms, a, b);
+  // Whisper-Zeiten als Ziel, wenn sie plausibel sind: monoton, und die Whisper-Spanne des Blocks deckt sich mit der
+  // Energie-Spanne (0,7…1,3). In kurzen, gepaddeten Blöcken sind sie gedehnt → dann Verteilung nach Zeichengewicht.
+  const first = words[0].t0, last = words[words.length - 1].t1;
+  const hasTimes = words.every((w) => Number.isFinite(w.t0) && Number.isFinite(w.t1));
+  const mono = hasTimes && words.every((w, i) => i === 0 || w.t0 >= words[i - 1].t0 - 0.02);
+  const span = hasTimes ? last - first : 0, blockSec = (b - a) * hopMs / 1000;
+  const useWhisper = hasTimes && mono && words.length >= 3 && span > 0 && span / blockSec >= 0.7 && span / blockSec <= 1.3;
   const bounds = [a];
   let acc = 0;
   for (let t = 0; t < words.length - 1; t++) {
     acc += W[t];
-    const target = a + (b - a) * acc / total;
+    const target = useWhisper ? a + (b - a) * (words[t + 1].t0 - first) / span : a + (b - a) * acc / total;
     const near = d.filter((x) => Math.abs(x - target) <= snapHops && x > bounds[bounds.length - 1] + 3);
     const pick = near.length ? near.reduce((best, x) => (Math.abs(x - target) < Math.abs(best - target) ? x : best), near[0]) : Math.round(target);
     bounds.push(Math.max(bounds[bounds.length - 1] + 1, pick));
   }
   bounds.push(b);
-  return words.map((w, i) => ({ ...w, h0: bounds[i], h1: bounds[i + 1] }));
+  return words.map((w, i) => ({ ...w, h0: bounds[i], h1: bounds[i + 1], ...(useWhisper ? { byWhisper: true } : {}) }));
 }

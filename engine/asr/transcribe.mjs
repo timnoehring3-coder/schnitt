@@ -7,6 +7,7 @@ import { alignWords } from '../audio/align.mjs';
 import { loadCutProfile } from '../cut/profile.mjs';
 import { transcribeSpan } from './whisper.mjs';
 import { filterWords } from './filter.mjs';
+import { normTok, simRatio } from '../lib/text.mjs';
 import { loadNames, applyNames, promptFromNames } from './names.mjs';
 import { progress, log } from '../lib/progress.mjs';
 import { wav16k } from '../lib/ffmpeg.mjs';
@@ -33,12 +34,7 @@ export default async function transcribe(project) {
       raw = raw.filter((w) => w.t0 >= b.t0 - pad - 0.05 && w.t0 <= b.t1 + pad + 0.05);
       const f = filterWords(raw, { spanSec: b.t1 - b.t0 });
       const n = applyNames(f.words, names);
-      const a = Math.round(b.t0 * 1000 / hopMs), e = Math.round(b.t1 * 1000 / hopMs);
-      const aligned = alignWords(n.words, db, a, e, { hopMs });
-      results[b.id] = {
-        words: aligned.map((w) => ({ w: w.w, t0: +(w.h0 * hopMs / 1000).toFixed(3), t1: +(w.h1 * hopMs / 1000).toFixed(3), p: w.p ?? null, block: b.id, take: b.take, ...(w.fixed ? { fixed: true } : {}) })),
-        flags: f.flags, fixed: n.hits,
-      };
+      results[b.id] = { pre: n.words, flags: f.flags, fixed: n.hits };
       done++;
       progress(5 + 90 * done / blocks.length, `ASR ${done}/${blocks.length}`);
     }
@@ -46,6 +42,27 @@ export default async function transcribe(project) {
   const par = Math.max(1, prof.asr.parallel || 2);
   const queues = Array.from({ length: par }, (_, i) => blocks.filter((_, k) => k % par === i));
   await Promise.all(queues.map(worker));
+  // Dubletten an Blockgrenzen: das Kontext-Pad lässt Whisper den Satzrest des Nachbarblocks mithören. Überlappt das
+  // Ende von Block k mit dem Anfang von k+1 (bis 4 Wörter, unscharf), bleibt das Wort dort, wo es laut Whisper-Zeit liegt.
+  let dupes = 0;
+  for (let k = 0; k + 1 < blocks.length; k++) {
+    const A = results[blocks[k].id]?.pre, B = results[blocks[k + 1].id]?.pre;
+    if (!A?.length || !B?.length || blocks[k + 1].t0 - blocks[k].t1 > 2 * pad + 0.5) continue;
+    const same = (x, y) => normTok(x.w) === normTok(y.w) || simRatio(normTok(x.w), normTok(y.w)) >= 0.8;
+    let m = 0;
+    for (let n = Math.min(4, A.length, B.length); n >= 1; n--) { let ok = true; for (let i = 0; i < n; i++) if (!same(A[A.length - n + i], B[i])) { ok = false; break; } if (ok) { m = n; break; } }
+    if (!m) continue;
+    const tail = A.slice(A.length - m);
+    const beyond = tail.filter((w) => w.t0 > blocks[k].t1 + 0.03).length;    // laut Whisper erst nach Blockende gesprochen
+    if (beyond * 2 >= m) A.splice(A.length - m, m); else B.splice(0, m);
+    dupes += m;
+  }
+  for (const b of blocks) {
+    const r = results[b.id]; if (!r) continue;
+    const a = Math.round(b.t0 * 1000 / hopMs), e = Math.round(b.t1 * 1000 / hopMs);
+    const aligned = alignWords(r.pre, db, a, e, { hopMs });
+    r.words = aligned.map((w) => ({ w: w.w, t0: +(w.h0 * hopMs / 1000).toFixed(3), t1: +(w.h1 * hopMs / 1000).toFixed(3), p: w.p ?? null, block: b.id, take: b.take, ...(w.fixed ? { fixed: true } : {}), ...(w.byWhisper ? { byWhisper: true } : {}) }));
+  }
   const words = results.flatMap((r) => r?.words || []);
   const blockInfo = blocks.map((b) => {
     const r = results[b.id] || { words: [], flags: [] };
@@ -56,7 +73,7 @@ export default async function transcribe(project) {
   writeJson(project.path('blocks.json'), bj);
   const loops = blockInfo.reduce((s, b) => s + b.flags.filter((f) => f.rule === 'loop').length, 0);
   const empty = blockInfo.filter((b) => !b.nWords).length;
-  const summary = { words: words.length, blocks: blocks.length, emptyBlocks: empty, loops, namesFixed: blockInfo.reduce((s, b) => s + b.fixed, 0) };
-  log(`asr: ${summary.words} Wörter · ${empty} leere Blöcke · ${loops} Schleifen entfernt · ${summary.namesFixed} Namen korrigiert`);
+  const summary = { words: words.length, blocks: blocks.length, emptyBlocks: empty, loops, dupes, namesFixed: blockInfo.reduce((s, b) => s + b.fixed, 0) };
+  log(`asr: ${summary.words} Wörter · ${empty} leere Blöcke · ${loops} Schleifen entfernt · ${dupes} Dubletten an Blockgrenzen · ${summary.namesFixed} Namen korrigiert`);
   return { summary };
 }

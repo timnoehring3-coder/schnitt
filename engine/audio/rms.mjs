@@ -25,7 +25,12 @@ export function percentile(arr, p) {
 
 /** Rauschboden und Hysterese-Schwellen. floor = 20. Perzentil; on = +12 dB, off = +8 dB. */
 export function thresholds(rms, { percentile: pc = 20, onDb = 12, offDb = 8 } = {}) {
-  const floor = percentile(rms, pc);
+  // Rauschboden = 20. Perzentil, solange die leisesten Hops ein enges Bündel bilden (echte Stille: p20 − p2 ≤ 8 dB).
+  // Material ohne Stille (fertiger Schnitt, Audio normalisiert) hat dieses Bündel nicht — dann liegt p20 mitten in
+  // der Sprache; der Boden ist dann das 2. Perzentil + 4 dB.
+  const p2 = percentile(rms, 2), p20 = percentile(rms, pc);
+  const noSilence = p20 - p2 > 8;
+  const floor = noSilence ? p2 + 4 : p20;
   const p50 = percentile(rms, 50), p95 = percentile(rms, 95);
-  return { floor, on: floor + onDb, off: floor + offDb, p50, p95, dynamic: p95 - floor };
+  return { floor, on: floor + onDb, off: floor + offDb, p50, p95, dynamic: p95 - floor, noSilence };
 }
