@@ -2,7 +2,7 @@
 //   node render-worker.mjs <montage.json> <publicDir> <out.mp4> [--crf 18]
 import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -20,4 +20,5 @@ await renderMedia({
   composition, serveUrl, codec: 'h264', crf, audioCodec: 'aac', outputLocation: out, inputProps: props,
   onProgress: ({ progress }) => { const p = Math.round(15 + progress * 85); if (p !== last) { last = p; process.stdout.write(`@@PROGRESS ${p} Rendern\n`); } },
 });
+try { rmSync(serveUrl, { recursive: true, force: true }); } catch { /* Bundle-Reste stören nicht */ }
 process.stdout.write(`@@RESULT ${JSON.stringify({ ok: true, out, frames: composition.durationInFrames })}\n`);

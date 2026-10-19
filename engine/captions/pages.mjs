@@ -23,6 +23,16 @@ export function buildPages(words, { minFrames = 6, maxHoldFrames = 12, segmentBr
     const until = next && next.select === w.select ? next.f0 : w.f1 + maxHoldFrames;
     return { f0: w.f0, f1: Math.max(w.f0 + 1, Math.min(until, w.f1 + maxHoldFrames)), t: w.w, select: w.select, block: w.block };
   });
+  // Nachlauf: ist eine Seite trotzdem kürzer als minFrames (Nachbarwort beginnt sofort), mit dem Nachbarn verschmelzen
+  for (let guard = 0; guard < 50; guard++) {
+    const i = pages.findIndex((p) => p.f1 - p.f0 < minFrames);
+    if (i < 0) break;
+    const p = pages[i], prev = pages[i - 1], next = pages[i + 1];
+    const withPrev = prev && prev.select === p.select, withNext = next && next.select === p.select;
+    if (withPrev && (!withNext || prev.f1 - prev.f0 <= next.f1 - next.f0)) { prev.t += ' ' + p.t; prev.f1 = p.f1; pages.splice(i, 1); }
+    else if (withNext) { next.t = p.t + ' ' + next.t; next.f0 = p.f0; pages.splice(i, 1); }
+    else { p.f1 = p.f0 + minFrames; }
+  }
   return pages;
 }
 
