@@ -1,0 +1,15 @@
+node_modules/
+dist/
+!dashboard/dist/
+*.log
+.DS_Store
+remotion/src/kit/font-data.js
+remotion/.remotion-cache/
+engine/test/corpus/**/*.mp4
+engine/test/corpus/**/*.mov
+engine/test/corpus/**/*.wav
+tools/swift/bin/
+cloud/web/.next/
+cloud/web/.vercel/
+.env
+.env.*

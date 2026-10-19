@@ -1,0 +1,14 @@
+{
+  "name": "schnitt-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Engine des Plugins „schnitt“: Pausen raus, Takes, Nähte, Untertitel, Render.",
+  "engines": { "node": ">=22" },
+  "bin": { "schnitt": "./cli.mjs" },
+  "scripts": {
+    "test": "node test/corpus.mjs",
+    "serve": "node server.mjs"
+  },
+  "dependencies": {}
+}

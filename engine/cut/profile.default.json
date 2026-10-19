@@ -1,0 +1,16 @@
+{
+  "hopMs": 10, "winMs": 20, "sampleRate": 16000,
+  "floor":  { "percentile": 20, "onDb": 12, "offDb": 8 },
+  "blocks": { "closeGapMs": 200, "minBlockMs": 250, "ctxPadMs": 300 },
+  "takes":  { "takeGapMs": 750, "sentenceSim": 0.6, "stallMs": 400,
+              "rejectWords": ["nein", "blöd", "nochmal", "noch mal", "fristblatt", "scheiße", "mist", "digger", "nee", "ne nochmal"],
+              "acceptWords": ["geht doch", "passt", "gut so", "das war's"] },
+  "asr":    { "model": "ggml-large-v3-turbo.bin", "lang": "de", "dtw": true, "parallel": 2,
+              "prompt": [], "dropWordMs": 1, "maxWordMs": 1500, "names": {} },
+  "seam":   { "leadFrames": 2, "tailFrames": 3, "targetFrames": [4, 6], "whisperEarlyFrames": 3,
+              "onsetSearchMs": [-150, 100], "offsetSearchMs": [-100, 250], "flankDb": 6 },
+  "breath": { "minMs": 80, "maxMs": 400, "aboveFloorDb": [4, 14], "centroidHz": 2000 },
+  "fade":   { "ms": 4 },
+  "video":  { "fps": 30, "crf": 18, "preset": "veryfast", "gop": 30, "portrait": true,
+              "audioCodec": "aac", "audioBitrate": "192k", "audioRate": 48000 }
+}

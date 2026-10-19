@@ -1,0 +1,10 @@
+{
+  "name": "schnitt",
+  "version": "0.1.0",
+  "description": "Automatischer Shorts-Schnitt: Pausen raus, Takes wählen, Untertitel, Motion-Graphics und Render — lokal auf deinem Mac, gesteuert aus Claude Code.",
+  "author": { "name": "Tim Nöhring", "email": "timnoehring3@gmail.com" },
+  "homepage": "https://github.com/timnoehring3-coder/schnitt",
+  "repository": "https://github.com/timnoehring3-coder/schnitt",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "keywords": ["video", "shorts", "schnitt", "remotion", "whisper", "ffmpeg"]
+}

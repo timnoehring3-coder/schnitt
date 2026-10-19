@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "schnitt-marketplace",
+  "description": "Marketplace für das Plugin „schnitt“ — automatischer Shorts-Schnitt aus Claude Code.",
+  "owner": { "name": "Tim Nöhring", "email": "timnoehring3@gmail.com" },
+  "plugins": [
+    {
+      "name": "schnitt",
+      "description": "Automatischer Shorts-Schnitt: Pausen raus, Takes wählen, Untertitel, Motion-Graphics und Render — lokal auf deinem Mac.",
+      "author": { "name": "Tim Nöhring" },
+      "category": "productivity",
+      "source": { "source": "github", "repo": "timnoehring3-coder/schnitt", "ref": "v1" },
+      "homepage": "https://github.com/timnoehring3-coder/schnitt"
+    }
+  ]
+}
