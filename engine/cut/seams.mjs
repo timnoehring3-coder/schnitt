@@ -35,6 +35,7 @@ export default async function seams(project) {
         if (r && r.block === w.block) r.b = i; else runs.push({ block: w.block, a: i, b: i });
       }
     } else for (const id of sel.blockIds) runs.push({ block: id, a: null, b: null });
+    if (sel.locked && Array.isArray(sel.segments) && sel.segments.length) { n += sel.segments.length; continue; }   // Hand-Kanten aus dem Take-Picker
     sel.segments = [];
     for (let k = 0; k < runs.length; k++) {
       const r = runs[k];

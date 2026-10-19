@@ -33,6 +33,13 @@ function serveFile(req, res, file, { download = false } = {}) {
   createReadStream(file).pipe(res);
 }
 
+function startSteps(project, steps, opts = {}) {
+  const [first, ...rest] = steps;
+  const st = startStep(project, first, opts);
+  if (rest.length) st.child.on('close', (code) => { if (code === 0) { try { startSteps(loadProject(project.dir), rest, opts); } catch (e) { sse('log', { project: project.json.id, step: rest[0], line: `✗ ${e.message}` }); } } });
+  return st;
+}
+
 function startStep(project, step, opts = {}) {
   if (running.has(project.json.id)) throw new Error(`läuft bereits: ${running.get(project.json.id).step}`);
   const args = [resolve(ENGINE_ROOT, 'cli.mjs'), step === 'run' ? 'run' : step, project.dir];
@@ -72,7 +79,7 @@ export async function serve({ port = 4747, open = true } = {}) {
         const project = loadProject(decodeURIComponent(m[1]));
         const rest = m[2] || '';
         if (!rest && req.method === 'GET') return json(res, 200, { ...project.json, chain: chain(project.json.source.kind), running: running.get(project.json.id) ? { step: running.get(project.json.id).step, pct: running.get(project.json.id).pct } : null });
-        if (rest === 'run' && req.method === 'POST') { const b = await body(req); startStep(project, b.step || 'run', b); return json(res, 200, { ok: true }); }
+        if (rest === 'run' && req.method === 'POST') { const b = await body(req); startSteps(project, Array.isArray(b.steps) && b.steps.length ? b.steps : [b.step || 'run'], b); return json(res, 200, { ok: true }); }
         if (rest === 'stop' && req.method === 'POST') { const s = running.get(project.json.id); if (s) s.child.kill('SIGTERM'); return json(res, 200, { ok: true, stopped: Boolean(s) }); }
         if (rest.startsWith('datei/')) {
           const name = rest.slice(6);
