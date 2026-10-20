@@ -15,7 +15,8 @@ const cli = (...args) => spawnSync(process.execPath, [resolve(here, '..', 'cli.m
 let fails = 0;
 for (const name of readdirSync(resolve(here, 'corpus')).filter((n) => !n.endsWith('.md'))) {
   if (only && name !== only) continue;
-  const src = SOURCES[name]; if (!src) continue;
+  const srcFile = resolve(here, "corpus", name, "source.json");
+  const src = existsSync(srcFile) ? JSON.parse(readFileSync(srcFile, "utf8")) : SOURCES[name]; if (!src) continue;
   const file = resolve(CORPUS, src.file);
   if (!existsSync(file)) { console.log(`${name}: Quelle fehlt (${file})`); continue; }
   console.log(`\n== ${name}`);

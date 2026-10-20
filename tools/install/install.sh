@@ -33,7 +33,7 @@ if claude plugin list 2>/dev/null | grep -q "schnitt@schnitt"; then echo "  Plug
 else claude plugin install schnitt@schnitt || { echo "Plugin-Installation fehlgeschlagen"; exit 1; }; fi
 
 say "Engine einrichten"
-ROOT=$(find "$HOME/.claude/plugins" -maxdepth 6 -path '*schnitt*' -name plugin.json 2>/dev/null | grep '/\.claude-plugin/plugin.json$' | head -1 | xargs -I{} dirname {} | xargs -I{} dirname {})
+ROOT=$(ls -d "$HOME"/.claude/plugins/cache/*/schnitt/* 2>/dev/null | sort -V | tail -1)
 [ -n "$ROOT" ] && [ -f "$ROOT/tools/install/setup.sh" ] || { echo "  Plugin-Ordner nicht gefunden — in Claude Code /schnitt:setup ausführen"; exit 1; }
 CLAUDE_PLUGIN_ROOT="$ROOT" bash "$ROOT/tools/install/setup.sh" </dev/tty || exit 1
 
