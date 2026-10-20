@@ -1,20 +1,37 @@
-// lib/license.mjs — Lemon-Squeezy-Lizenz. Kein API-Key nötig: activate/validate/deactivate sind öffentliche Endpunkte.
-// Datei ~/.config/schnitt/license.json (chmod 600): {key, instanceId, instanceName, variant, product, status, expiresAt, lastOk, lastCheck}
+// lib/license.mjs — Lizenz gegen den eigenen Server (cloud/web, Stripe dahinter). Schlüssel sind Ed25519-signiert:
+// die Signatur prüft die Engine offline mit license-public.pem, Abo-Status und Geräte prüft der Server.
+// Datei ~/.config/schnitt/license.json (chmod 600): {key, instanceId, instanceName, plan, status, expiresAt, lastOk, lastCheck}
 // Prüfung höchstens 1× je 24 h, Offline-Grace 14 Tage ab lastOk. SCHNITT_DEV=1 umgeht die Prüfung (Entwicklung, Korpus-Tests).
 import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync, unlinkSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { hostname } from 'node:os';
+import { createPublicKey, verify } from 'node:crypto';
 import { CONFIG_DIR } from './paths.mjs';
+import { LICENSE_API } from './config.mjs';
 
-const API = process.env.SCHNITT_LICENSE_API || 'https://api.lemonsqueezy.com/v1/licenses';
+const API = process.env.SCHNITT_LICENSE_API || LICENSE_API;
+const PUB = process.env.SCHNITT_LICENSE_PUBKEY || resolve(dirname(fileURLToPath(import.meta.url)), 'license-public.pem');
 const FILE = resolve(CONFIG_DIR, 'license.json');
 const DAY = 86400e3, GRACE_DAYS = 14;
+const PLAN_LABEL = { lifetime: 'Lifetime', monthly: 'Monatlich', beta: 'Beta' };
 
 export function readLicense() { try { return JSON.parse(readFileSync(FILE, 'utf8')); } catch { return null; } }
 function writeLicense(obj) { mkdirSync(CONFIG_DIR, { recursive: true }); writeFileSync(FILE, JSON.stringify(obj, null, 2)); chmodSync(FILE, 0o600); return obj; }
 
+/** Form und Signatur offline prüfen; liefert {plan, expiresAt} oder wirft. */
+export function parseKey(key) {
+  const m = /^SCHNITT-([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/.exec((key || '').trim());
+  if (!m) throw new Error('Schlüsselformat ungültig (erwartet SCHNITT-…)');
+  const data = Buffer.from(m[1], 'base64url'), sig = Buffer.from(m[2], 'base64url');
+  if (!verify(null, data, createPublicKey(readFileSync(PUB, 'utf8')), sig)) throw new Error('Schlüssel-Signatur ungültig');
+  const [v, plan, , , , exp] = JSON.parse(data.toString());
+  if (v !== 1) throw new Error(`Schlüsselversion ${v} unbekannt`);
+  return { plan, expiresAt: exp ? new Date(exp * 1000).toISOString() : null };
+}
+
 async function call(path, body) {
-  const res = await fetch(`${API}/${path}`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(body) });
+  const res = await fetch(`${API}/${path}`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const json = await res.json().catch(() => ({}));
   if (!res.ok && !json.error) json.error = `HTTP ${res.status}`;
   return json;
@@ -22,19 +39,21 @@ async function call(path, body) {
 
 export async function activate(key) {
   if (!key) throw new Error('Lizenzschlüssel fehlt: lizenz aktivieren <KEY>');
-  const r = await call('activate', { license_key: key.trim(), instance_name: hostname() });
+  const k = key.trim();
+  const local = parseKey(k);
+  const r = await call('activate', { key: k, instanceName: hostname() });
   if (!r.activated) return { ok: false, error: r.error || 'Aktivierung abgelehnt' };
   const lic = writeLicense({
-    key: key.trim(), instanceId: r.instance?.id, instanceName: r.instance?.name, variant: r.meta?.variant_name, product: r.meta?.product_name,
-    status: r.license_key?.status, expiresAt: r.license_key?.expires_at || null, lastOk: Date.now(), lastCheck: Date.now(),
+    key: k, instanceId: r.instance?.id, instanceName: r.instance?.name, plan: r.plan || local.plan,
+    status: r.status || 'active', expiresAt: r.expiresAt || local.expiresAt || null, lastOk: Date.now(), lastCheck: Date.now(),
   });
-  return { ok: true, variant: lic.variant, product: lic.product, expiresAt: lic.expiresAt };
+  return { ok: true, plan: lic.plan, variant: PLAN_LABEL[lic.plan] || lic.plan, expiresAt: lic.expiresAt };
 }
 
 export async function deactivate() {
   const lic = readLicense();
   if (!lic) return { ok: true, note: 'keine Lizenz hinterlegt' };
-  const r = await call('deactivate', { license_key: lic.key, instance_id: lic.instanceId }).catch(() => ({}));
+  const r = await call('deactivate', { key: lic.key, instanceId: lic.instanceId }).catch(() => ({}));
   try { unlinkSync(FILE); } catch { /* weg ist weg */ }
   return { ok: true, deactivated: Boolean(r.deactivated) };
 }
@@ -47,18 +66,19 @@ export async function status({ force = false } = {}) {
   const stale = Date.now() - (lic.lastCheck || 0) > DAY;
   if (stale || force) {
     try {
-      const r = await call('validate', { license_key: lic.key, instance_id: lic.instanceId });
-      lic.lastCheck = Date.now();
-      if (r.valid) { lic.lastOk = Date.now(); lic.status = r.license_key?.status; lic.expiresAt = r.license_key?.expires_at || null; }
-      else if (r.error || r.valid === false) { lic.status = r.license_key?.status || 'invalid'; lic.lastError = r.error || 'ungültig'; }
+      const r = await call('validate', { key: lic.key, instanceId: lic.instanceId });
+      lic.lastCheck = Date.now(); delete lic.offline;
+      if (r.valid) { lic.lastOk = Date.now(); lic.status = r.status || 'active'; lic.expiresAt = r.expiresAt || null; delete lic.lastError; }
+      else if (r.valid === false || r.error) { lic.status = r.status || 'invalid'; lic.lastError = r.error || 'ungültig'; }
       writeLicense(lic);
-    } catch (e) { lic.lastCheck = Date.now(); lic.offline = true; writeLicense(lic); }
+    } catch { lic.lastCheck = Date.now(); lic.offline = true; writeLicense(lic); }
   }
   const sinceOk = (Date.now() - (lic.lastOk || 0)) / DAY;
   const expired = lic.expiresAt && Date.parse(lic.expiresAt) < Date.now();
-  const okStatus = lic.status === 'active' && !expired;
-  if (okStatus && sinceOk <= GRACE_DAYS) return { ok: true, variant: lic.variant, product: lic.product, expiresAt: lic.expiresAt, lastOk: new Date(lic.lastOk).toISOString(), graceDaysLeft: Math.max(0, Math.round(GRACE_DAYS - sinceOk)) };
-  return { ok: false, error: expired ? 'Lizenz abgelaufen' : !okStatus ? `Lizenz ${lic.status || 'ungültig'}` : `seit ${Math.round(sinceOk)} Tagen nicht bestätigt (Grace ${GRACE_DAYS} Tage) — online gehen`, variant: lic.variant };
+  const okStatus = ['active', 'trialing', 'past_due'].includes(lic.status) && !expired;
+  const variant = PLAN_LABEL[lic.plan] || lic.plan;
+  if (okStatus && sinceOk <= GRACE_DAYS) return { ok: true, plan: lic.plan, variant, expiresAt: lic.expiresAt, lastOk: new Date(lic.lastOk).toISOString(), graceDaysLeft: Math.max(0, Math.round(GRACE_DAYS - sinceOk)) };
+  return { ok: false, error: expired ? 'Lizenz abgelaufen' : !okStatus ? `Lizenz ${lic.lastError || lic.status || 'ungültig'}` : `seit ${Math.round(sinceOk)} Tagen nicht bestätigt (Grace ${GRACE_DAYS} Tage) — online gehen`, plan: lic.plan, variant };
 }
 
 export async function ensureLicensed(what = 'dieser Schritt') {

@@ -3,16 +3,23 @@
 Voraussetzungen: macOS 14 oder neuer auf Apple Silicon oder Intel, Claude Code, Homebrew, etwa 4 GB freier Platz
 (Whisper-Modell 1,6 GB, Remotion mit Headless-Chrome rund 600 MB).
 
+## Eine Zeile im Terminal
+
+```
+curl -fsSL https://raw.githubusercontent.com/timnoehring3-coder/schnitt/main/tools/install/install.sh | bash
+```
+
+Prüft Homebrew, installiert Claude Code, falls es fehlt, registriert Marketplace und Plugin und richtet die Engine ein.
+
 ## In Claude Code
 
 ```
-/plugin marketplace add timnoehring3-coder/schnitt-marketplace
-/plugin install schnitt
-/schnitt:setup
+/plugin marketplace add timnoehring3-coder/schnitt
+/plugin install schnitt@schnitt
 /schnitt:lizenz <DEIN-SCHLÜSSEL>
 ```
 
-`/schnitt:setup` installiert über Homebrew `ffmpeg`, `whisper-cpp`, `node@22`, `yt-dlp`, lädt das Whisper-Modell nach
+Die Einrichtung läuft beim ersten `/schnitt:neu` von selbst (`tools/install/ensure.sh`); `/schnitt:setup` stößt sie von Hand an. Sie installiert über Homebrew `ffmpeg`, `whisper-cpp`, `node@22`, `yt-dlp`, lädt das Whisper-Modell nach
 `~/.config/schnitt/models/`, installiert Remotion, kompiliert die Apple-Vision-Werkzeuge nach `~/.config/schnitt/bin/`
 und baut das Dashboard. Der Lauf ist wiederholbar; ein abgebrochener Download wird fortgesetzt.
 

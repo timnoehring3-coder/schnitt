@@ -6,6 +6,8 @@ allowed-tools: ["Bash", "Read"]
 
 # /schnitt:neu $ARGUMENTS
 
+0. `bash "${CLAUDE_PLUGIN_ROOT}/tools/install/ensure.sh"` — still, wenn alles eingerichtet ist; sonst läuft die Einrichtung (Homebrew-Werkzeuge, Whisper-Modell, Remotion) einmalig durch. Ausgabe zeigen, dann weiter.
+
 Lies zuerst `${CLAUDE_PLUGIN_ROOT}/skills/pausen-schnitt/SKILL.md`.
 
 1. `node "${CLAUDE_PLUGIN_ROOT}/engine/cli.mjs" neu "<pfad>" [--name X] [--typ fertig]` — `--typ fertig`, wenn der Nutzer sagt, das Video sei schon geschnitten (`--fertig`). Die letzte Zeile `@@RESULT …` enthält `id`.

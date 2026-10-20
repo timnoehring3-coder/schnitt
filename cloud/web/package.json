@@ -2,6 +2,18 @@
   "name": "schnitt-web",
   "version": "0.1.0",
   "private": true,
-  "scripts": { "dev": "next dev", "build": "next build", "start": "next start" },
-  "dependencies": { "next": "15.1.6", "react": "19.0.0", "react-dom": "19.0.0", "resend": "4.1.2" }
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "issue-key": "node scripts/issue-key.mjs"
+  },
+  "dependencies": {
+    "next": "15.1.6",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "resend": "4.1.2",
+    "stripe": "23.0.0"
+  },
+  "type": "module"
 }

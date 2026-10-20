@@ -4,8 +4,10 @@ export default function Docs() {
     <main>
       <h1>Docs</h1>
       <h2>Installation</h2>
-      <pre>{`/plugin install schnitt --marketplace timnoehring3-coder/schnitt-marketplace
-/schnitt:setup
+      <pre>{`curl -fsSL https://raw.githubusercontent.com/timnoehring3-coder/schnitt/main/tools/install/install.sh | bash`}</pre>
+      <p className="muted">oder in Claude Code:</p>
+      <pre>{`/plugin marketplace add timnoehring3-coder/schnitt
+/plugin install schnitt@schnitt
 /schnitt:lizenz <KEY>`}</pre>
       <p className="muted">Setup installiert ffmpeg, whisper-cpp, node@22 über Homebrew, lädt das Whisper-Modell (1,6 GB), richtet Remotion ein und baut das Dashboard. Wiederholbar.</p>
       <h2>Ablauf</h2>

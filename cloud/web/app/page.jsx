@@ -16,9 +16,11 @@ export default function Home() {
       </div>
       <h2>Für wen</h2>
       <p className="lead" style={{ fontSize: 17 }}>Creator, die Claude Code nutzen und ihre Shorts selbst drehen. Du brauchst einen Mac (Apple Silicon empfohlen), Claude Code und 20 Minuten für die Einrichtung.</p>
-      <h2>Drei Zeilen</h2>
-      <pre>{`/plugin install schnitt --marketplace timnoehring3-coder/schnitt-marketplace
-/schnitt:setup
+      <h2>Eine Zeile</h2>
+      <pre>{`curl -fsSL https://raw.githubusercontent.com/timnoehring3-coder/schnitt/main/tools/install/install.sh | bash`}</pre>
+      <p className="muted">oder in Claude Code:</p>
+      <pre>{`/plugin marketplace add timnoehring3-coder/schnitt
+/plugin install schnitt@schnitt
 /schnitt:neu ~/Movies/aufnahme.mov`}</pre>
     </main>
   );
