@@ -5,17 +5,33 @@ import { run } from '../lib/spawn.mjs';
 import { readJson, writeJson } from '../lib/project.mjs';
 import { progress, log } from '../lib/progress.mjs';
 
-export async function detectSplices(file, { fps = 30, factor = 3.5, minGapFrames = 3 } = {}) {
+/** Frame-Differenz je Frame (YAVG von tblend difference). Index i = Differenz Frame i zu i−1, 0-basiert. */
+export async function frameDiffs(file, fps = 30) {
   const out = await run('ffmpeg', ['-nostdin', '-v', 'error', '-i', file, '-vf', 'tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-', '-f', 'null', '-']);
   const rows = []; let t = null;
   for (const line of out.split('\n')) {
     const m1 = /pts_time:([\d.]+)/.exec(line); if (m1) { t = Number(m1[1]); continue; }
     const m2 = /YAVG=([\d.]+)/.exec(line); if (m2 && t != null) rows.push({ t, v: Number(m2[1]) });
   }
+  return rows.map((r) => ({ frame: Math.round(r.t * fps), t: r.t, v: r.v }));
+}
+
+/**
+ * Klebestelle = Frame, der eine neue Einstellung beginnt (am Korpus mit rohen Frames nachgemessen: Index = round(t·fps)).
+ * Zwei Wege: stark (≥ factor × Mittel) oder markant (≥ minFactor × Mittel UND ≥ prominence × beide Nachbarn) —
+ * ein Schnitt ist eine Einzelspitze, Bewegung/Zoom liefert Läufe erhöhter Werte.
+ */
+export async function detectSplices(file, { fps = 30, factor = 3.5, minFactor = 2.5, prominence = 1.8, minGapFrames = 3 } = {}) {
+  const rows = await frameDiffs(file, fps);
   const mean = rows.reduce((s, r) => s + r.v, 0) / Math.max(1, rows.length);
   const thr = factor * mean;
   const frames = [];
-  for (const r of rows) { const f = Math.round(r.t * fps) - 1; if (r.v > thr && (!frames.length || f - frames[frames.length - 1].frame >= minGapFrames)) frames.push({ frame: f, t: +r.t.toFixed(3), ratio: +(r.v / mean).toFixed(2) }); }
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i], ratio = r.v / mean;
+    const nb = Math.max(rows[i - 1].v, rows[i + 1]?.v ?? 0);
+    const hit = ratio >= factor || (ratio >= minFactor && r.v >= prominence * nb);
+    if (hit && (!frames.length || r.frame - frames[frames.length - 1].frame >= minGapFrames)) frames.push({ frame: r.frame, t: +r.t.toFixed(3), ratio: +ratio.toFixed(2), prominence: +(r.v / Math.max(nb, 1e-6)).toFixed(1) });
+  }
   return { mean: +mean.toFixed(3), threshold: +thr.toFixed(3), frames };
 }
 
