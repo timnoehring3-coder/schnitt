@@ -35,7 +35,7 @@ async function call(path, body) {
   const res = await fetch(`${API}/${path}`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const json = await res.json().catch(() => ({}));
   // Antwort nicht von unserem Server (Vercel-404, Proxy, Wartungsseite): error fehlt oder ist kein Text → wie „nicht erreichbar"
-  if (!res.ok && typeof json.error !== 'string') throw new Error(`HTTP ${res.status}${json?.error?.code ? ` ${json.error.code}` : ''}`);
+  if (!res.ok && typeof json.error !== 'string') throw new Error(`HTTP ${res.status}${json?.error?.code && json.error.code !== String(res.status) ? ` ${json.error.code}` : ''}`);
   return json;
 }
 
