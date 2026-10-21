@@ -1,7 +1,8 @@
 // lib/license.mjs — Lizenz gegen den eigenen Server (cloud/web, Stripe dahinter). Schlüssel sind Ed25519-signiert:
 // die Signatur prüft die Engine offline mit license-public.pem, Abo-Status und Geräte prüft der Server.
 // Datei ~/.config/schnitt/license.json (chmod 600): {key, instanceId, instanceName, plan, status, expiresAt, lastOk, lastCheck}
-// Prüfung höchstens 1× je 24 h, Offline-Grace 14 Tage ab lastOk. SCHNITT_DEV=1 umgeht die Prüfung (Entwicklung, Korpus-Tests).
+// Prüfung höchstens 1× je 24 h, Offline-Grace 14 Tage ab lastOk. Es gibt KEINE Umgehung per Umgebungsvariable (öffentliches
+// Repo): Entwicklung läuft mit einem signierten owner-Schlüssel, den nur der private Schlüssel des Betreibers erzeugt.
 import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync, unlinkSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +15,7 @@ const API = process.env.SCHNITT_LICENSE_API || LICENSE_API;
 const PUB = process.env.SCHNITT_LICENSE_PUBKEY || resolve(dirname(fileURLToPath(import.meta.url)), 'license-public.pem');
 const FILE = resolve(CONFIG_DIR, 'license.json');
 const DAY = 86400e3, GRACE_DAYS = 14;
-const PLAN_LABEL = { lifetime: 'Lifetime', monthly: 'Monatlich', beta: 'Beta' };
+const PLAN_LABEL = { lifetime: 'Lifetime', monthly: 'Monatlich', beta: 'Beta', owner: 'Entwickler' };
 
 export function readLicense() { try { return JSON.parse(readFileSync(FILE, 'utf8')); } catch { return null; } }
 function writeLicense(obj) { mkdirSync(CONFIG_DIR, { recursive: true }); writeFileSync(FILE, JSON.stringify(obj, null, 2)); chmodSync(FILE, 0o600); return obj; }
@@ -41,11 +42,16 @@ export async function activate(key) {
   if (!key) throw new Error('Lizenzschlüssel fehlt: lizenz aktivieren <KEY>');
   const k = key.trim();
   const local = parseKey(k);
-  const r = await call('activate', { key: k, instanceName: hostname() });
+  // owner-Schlüssel dürfen auch ohne erreichbaren Server aktivieren (Signatur reicht); die Grace-Frist läuft dann ab jetzt.
+  const r = await call('activate', { key: k, instanceName: hostname() }).catch((e) => {
+    if (local.plan === 'owner') return { activated: true, plan: 'owner', status: 'active', offline: true };
+    throw new Error(`Lizenzserver nicht erreichbar (${e?.cause?.code || e?.message || e})`);
+  });
   if (!r.activated) return { ok: false, error: r.error || 'Aktivierung abgelehnt' };
   const lic = writeLicense({
     key: k, instanceId: r.instance?.id, instanceName: r.instance?.name, plan: r.plan || local.plan,
     status: r.status || 'active', expiresAt: r.expiresAt || local.expiresAt || null, lastOk: Date.now(), lastCheck: Date.now(),
+    ...(r.offline ? { offline: true } : {}),
   });
   return { ok: true, plan: lic.plan, variant: PLAN_LABEL[lic.plan] || lic.plan, expiresAt: lic.expiresAt };
 }
@@ -60,7 +66,6 @@ export async function deactivate() {
 
 /** Prüft online, höchstens einmal je 24 h; offline zählt die Grace-Frist ab dem letzten OK. */
 export async function status({ force = false } = {}) {
-  if (process.env.SCHNITT_DEV === '1') return { ok: true, mode: 'dev' };
   const lic = readLicense();
   if (!lic) return { ok: false, error: 'keine Lizenz — /schnitt:lizenz <KEY>' };
   const stale = Date.now() - (lic.lastCheck || 0) > DAY;

@@ -10,7 +10,8 @@ const CORPUS = process.env.CORPUS_DIR || resolve(homedir(), 'Tim OS', 'work', 'p
 const OUT = process.env.SCHNITT_PROJEKTE || '/tmp/schnitt-corpus';
 const only = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1] : null;
 const SOURCES = { arcads: { file: 'arcads/raw.mp4', typ: 'roh' }, dreiskills: { file: 'dreiskills/camera.mp4', typ: 'fertig' } };
-const env = { ...process.env, SCHNITT_PROJEKTE: OUT, SCHNITT_DEV: '1' };
+// Der Schnitt-Schritt braucht eine Lizenz: auf dem Entwickler-Mac der aktivierte owner-Schlüssel in ~/.config/schnitt/.
+const env = { ...process.env, SCHNITT_PROJEKTE: OUT };
 const cli = (...args) => spawnSync(process.execPath, [resolve(here, '..', 'cli.mjs'), ...args], { env, encoding: 'utf8', maxBuffer: 1 << 26 });
 let fails = 0;
 for (const name of readdirSync(resolve(here, 'corpus')).filter((n) => !n.endsWith('.md'))) {

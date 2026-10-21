@@ -23,7 +23,7 @@ export async function doctor() {
   for (const t of ['detect-chin', 'person-cutout']) add(`Swift-Tool ${t}`, existsSync(resolve(BIN_DIR, t)), existsSync(resolve(BIN_DIR, t)) ? 'kompiliert' : 'wird beim ersten Aufruf kompiliert', '');
   try { mkdirSync(CONFIG_DIR, { recursive: true }); accessSync(CONFIG_DIR, constants.W_OK); add('Konfig-Ordner', true, CONFIG_DIR); } catch { add('Konfig-Ordner', false, CONFIG_DIR, 'Rechte prüfen'); }
   try { mkdirSync(PROJECTS_DIR, { recursive: true }); add('Projekt-Ordner', true, PROJECTS_DIR); } catch { add('Projekt-Ordner', false, PROJECTS_DIR, 'SCHNITT_PROJEKTE setzen'); }
-  const lic = await licenseStatus(); add('Lizenz', lic.ok, lic.ok ? (lic.mode === 'dev' ? 'Entwicklungsmodus' : `${lic.variant || 'aktiv'}${lic.graceDaysLeft != null ? ` · Grace ${lic.graceDaysLeft} T` : ''}`) : lic.error, '/schnitt:lizenz <KEY>');
+  const lic = await licenseStatus(); add('Lizenz', lic.ok, lic.ok ? `${lic.variant || 'aktiv'}${lic.graceDaysLeft != null ? ` · Grace ${lic.graceDaysLeft} T` : ''}` : lic.error, '/schnitt:lizenz <KEY>');
   const ok = rows.filter((r) => !r.ok && !/yt-dlp|Swift-Tool|Lizenz/.test(r.name)).length === 0;
   return { ok, rows };
 }

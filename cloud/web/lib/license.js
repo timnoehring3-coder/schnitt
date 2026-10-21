@@ -1,10 +1,13 @@
 // lib/license.js — Lizenzschlüssel ohne Datenbank: Ed25519-signierte Nutzlast, Geräte in Stripe-Kundenmetadaten.
 // Schlüssel: SCHNITT-<base64url(JSON [v, plan, customer, subscription, issuedAt, expiresAt])>.<base64url(sig)>
-// Pläne: lifetime (Einmalkauf, kein Ablauf), monthly (läuft mit dem Stripe-Abo), beta (festes Ablaufdatum, ohne Stripe).
+// Pläne: lifetime (Einmalkauf, kein Ablauf), monthly (läuft mit dem Stripe-Abo), beta (festes Ablaufdatum, ohne Stripe),
+// owner (Entwickler, ohne Stripe, ohne Ablauf, ohne Gerätelimit — nur über scripts/issue-key.mjs mit dem privaten Schlüssel).
+// Schlüssel ohne Stripe-Kunde (beta, owner) sperrt LICENSE_REVOKED: Komma-Liste der issuedAt-Sekunden aus dem Schlüssel.
 import { createPrivateKey, createPublicKey, sign, verify, randomBytes } from 'node:crypto';
 import Stripe from 'stripe';
 
 const SEATS = Number(process.env.LICENSE_SEATS || 2);
+const REVOKED = () => new Set((process.env.LICENSE_REVOKED || '').split(',').map((s) => s.trim()).filter(Boolean));
 const b64u = (buf) => Buffer.from(buf).toString('base64url');
 
 export function privateKey() {
@@ -15,7 +18,7 @@ export function privateKey() {
 export function publicKeyPem() { return createPublicKey(privateKey()).export({ type: 'spki', format: 'pem' }); }
 
 export function issueKey({ plan, customer = null, subscription = null, expiresAt = null }) {
-  if (!['lifetime', 'monthly', 'beta'].includes(plan)) throw new Error(`unbekannter Plan ${plan}`);
+  if (!['lifetime', 'monthly', 'beta', 'owner'].includes(plan)) throw new Error(`unbekannter Plan ${plan}`);
   const exp = expiresAt ? Math.floor(new Date(expiresAt).getTime() / 1000) : null;
   const data = Buffer.from(JSON.stringify([1, plan, customer, subscription, Math.floor(Date.now() / 1000), exp]));
   return `SCHNITT-${b64u(data)}.${b64u(sign(null, data, privateKey()))}`;
@@ -29,7 +32,7 @@ export function parseKey(key) {
   if (!verify(null, data, createPublicKey(privateKey()), sig)) throw new Error('Signatur ungültig');
   const [v, plan, customer, subscription, issued, exp] = JSON.parse(data.toString());
   if (v !== 1) throw new Error(`Schlüsselversion ${v} unbekannt`);
-  return { plan, customer, subscription, issuedAt: new Date(issued * 1000).toISOString(), expiresAt: exp ? new Date(exp * 1000).toISOString() : null };
+  return { plan, customer, subscription, issued, issuedAt: new Date(issued * 1000).toISOString(), expiresAt: exp ? new Date(exp * 1000).toISOString() : null };
 }
 
 let _stripe;
@@ -40,9 +43,10 @@ export function stripe() {
 
 /** Gültigkeit laut Stripe: Abo-Status bzw. Rückerstattung. Liefert {ok, status, expiresAt, error}. */
 export async function planStatus(p) {
-  if (p.plan === 'beta') {
+  if (p.plan === 'beta' || p.plan === 'owner') {
+    if (REVOKED().has(String(p.issued))) return { ok: false, status: 'revoked', error: 'Schlüssel gesperrt' };
     const ok = !p.expiresAt || Date.parse(p.expiresAt) > Date.now();
-    return { ok, status: ok ? 'active' : 'expired', expiresAt: p.expiresAt, error: ok ? null : 'Beta-Schlüssel abgelaufen' };
+    return { ok, status: ok ? 'active' : 'expired', expiresAt: p.expiresAt, error: ok ? null : 'Schlüssel abgelaufen' };
   }
   if (!p.customer) return { ok: false, status: 'invalid', error: 'Schlüssel ohne Kunde' };
   const cust = await stripe().customers.retrieve(p.customer);

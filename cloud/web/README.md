@@ -33,7 +33,14 @@ Rückerstattung: `charge.refunded` setzt `schnitt_revoked`, danach schlägt jede
 ```
 node scripts/issue-key.mjs beta 2026-12-31 [mail@x.de --mail]   # Beta-Tester, ohne Stripe
 node scripts/issue-key.mjs lifetime mail@x.de [--mail]          # legt/findet den Stripe-Kunden
+node scripts/issue-key.mjs owner                                # Entwickler-Schlüssel: kein Ablauf, kein Stripe, kein Gerätelimit
+node scripts/issue-key.mjs lesen <KEY>                          # Nutzlast eines Schlüssels anzeigen (Plan, issued, Ablauf)
 ```
+
+Der owner-Schlüssel ist der Entwicklerzugang. Es gibt bewusst keine Umgehung per Umgebungsvariable, weil das Repo öffentlich
+ist — nur wer `LICENSE_PRIVATE_KEY` hat, kann einen gültigen Schlüssel erzeugen. Verliert ein beta- oder owner-Schlüssel das
+Vertrauen: seinen `issued`-Wert (Sekunden, siehe `lesen`) in `LICENSE_REVOKED` (Komma-Liste) auf Vercel eintragen, danach
+schlägt die nächste Online-Prüfung fehl (spätestens nach 24 h, offline nach 14 Tagen Grace).
 
 ## Lokal testen
 
