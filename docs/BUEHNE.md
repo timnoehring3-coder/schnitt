@@ -13,6 +13,7 @@ Ein Projekt ist ein Ordner `~/schnitt-projekte/<id>/`. Alles ist JSON, alles wir
 | `audio/peaks.json` | `analyse` | `{binMs:5, bins, data}` Int8 base64 für die Wellenform |
 | `blocks.json` | `blocks`, `asr` | `{fps, hopMs, floor, on, off, blocks:[{id,t0,t1,f0,f1,take,text,nWords,flags}], takes}` |
 | `words-src.json` | `asr` | `{fps, prompt, words:[{w,t0,t1,p,block,take}], blocks:[{id,text,nWords,flags}]}` — Text von Whisper, Zeiten aus der Energie |
+| `words-raw.json` | `asr` | `{pad, blocks:[{id,t0,t1,pre:[{w,t0,t1,p}]}]}` — Rohwörter je Block mit Whisper-Zeiten vor der Dubletten-Bereinigung (für `test/dedupe-replay.mjs`) |
 | `names.json` | Nutzer, Dashboard | `{"gehört": "Gemeint"}` — Prompt und Ersetzung in `asr` |
 | `selects.json` | `takes`, `seams`, Dashboard | `{fps, kind, groups:[{id,text,takes,chosen,skipped}], selects:[{id:"V#", group, blockIds, text, nWords, t0, t1, dur, enabled, order, locked, segments:[{block, words, in, out, inSec, outSec, onsetSec, offsetSec, decaySec, breath, hardIn, hardOut}]}]}` |
 | `cut-profile.json` | Nutzer | überschreibt Felder aus `engine/cut/profile.default.json`, z. B. `{"seam":{"haerte":"weich"}}` |

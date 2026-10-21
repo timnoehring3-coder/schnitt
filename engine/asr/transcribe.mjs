@@ -41,26 +41,22 @@ export default async function transcribe(project) {
   };
   const par = Math.max(1, prof.asr.parallel || 2);
   const queues = Array.from({ length: par }, (_, i) => blocks.filter((_, k) => k % par === i));
-  await Promise.all(queues.map(worker));
-  // Pad-Mitschnitt: das Kontext-Pad lässt Whisper den Satzrest des Nachbarblocks mithören. Bereinigt wird nur dort,
-  // wo das Pad wirklich in den Nachbarblock reicht (Lücke < Pad) — bei größeren Lücken ist gleicher Wortlaut ein
-  // Neuansatz (Roh-Take) und bleibt. Gleicher Wortlaut am Ende von A und Anfang von B (bis 4 Wörter, unscharf): die
-  // Wörter bleiben auf der Seite, auf der Whisper sie zeitlich verortet (A's Pad nach Blockende → aus A; sonst aus B).
-  // Gemessen (dreiskills 125 Wörter): so |Δ| Median 3 F, p90 8 F; ein zusätzlicher Zeitschnitt an den Whisper-Zeiten
-  // löschte doppelt (122 Wörter), Dedupe über alle Lücken kostete bei arcads 3 von 16 Take-Treffern.
-  let dupes = 0;
-  if (prof.asr.dedupe !== false) for (let k = 0; k + 1 < blocks.length; k++) {
-    const A = results[blocks[k].id]?.pre, B = results[blocks[k + 1].id]?.pre;
-    if (!A?.length || !B?.length || blocks[k + 1].t0 - blocks[k].t1 >= pad) continue;
-    const same = (x, y) => normTok(x.w) === normTok(y.w) || simRatio(normTok(x.w), normTok(y.w)) >= 0.8;
-    let m = 0;
-    for (let n = Math.min(4, A.length - 1, B.length - 1); n >= 1; n--) { let ok = true; for (let i = 0; i < n; i++) if (!same(A[A.length - n + i], B[i])) { ok = false; break; } if (ok) { m = n; break; } }
-    if (!m) continue;
-    const tail = A.slice(A.length - m);
-    const beyond = tail.filter((w) => w.t0 > blocks[k].t1 + 0.03).length;
-    if (beyond * 2 >= m) A.splice(A.length - m, m); else B.splice(0, m);
-    dupes += m;
-  }
+  const rawFile = project.path('words-raw.json');
+  if (process.env.SCHNITT_ASR_REPLAY === '1' && existsSync(rawFile)) {
+    // Regel-Experimente: Rohwörter des letzten Whisper-Laufs wiederverwenden statt neu zu transkribieren.
+    for (const b of readJson(rawFile).blocks) results[b.id] = { pre: b.pre, flags: b.flags || (bj.blocks[b.id]?.flags || []).map((rule) => ({ rule })), fixed: b.fixed || 0 };
+    log('asr: Replay aus words-raw.json (SCHNITT_ASR_REPLAY)');
+  } else await Promise.all(queues.map(worker));
+  // Pad-Mitschnitt: das Kontext-Pad lässt Whisper den Satzrest des Nachbarblocks mithören — und über das Blockende
+  // hinaus halluzinieren (blender: Block 0 endet 8,62 s, Whisper liefert „alles mit KI erstellt wurde“ bis 10,5 s).
+  // Bereinigt wird nur dort, wo das Pad wirklich in den Nachbarblock reicht (Lücke < Pad) — bei größeren Lücken ist
+  // gleicher Wortlaut ein Neuansatz (Roh-Take) und bleibt; Dedupe über alle Lücken kostete bei arcads 3 von 16 Takes.
+  // Regel: längste gemeinsame Wortfolge zwischen A-Schwanz und B-Kopf (mit Versatz). Seite je Doppelwort: Wortmitte
+  // (Mittel beider Fassungen) vor der Lückenmitte → A, sonst B; hat A das Wort gar nicht mehr gehört → B. Der Schnitt
+  // ist monoton. A-Wörter hinter der Dublette und B-Wörter davor sind Pad-Halluzination; ungepaarte Randwörter mehr als
+  // pad/2 jenseits der Blockgrenze fallen. Gemessen: blender |Δ| Median 4→2 F, dreiskills 3→2 F (125/125), voiceaudio 1 F.
+  writeJson(rawFile, { pad, blocks: blocks.map((b) => ({ id: b.id, t0: b.t0, t1: b.t1, pre: results[b.id]?.pre || [], flags: results[b.id]?.flags || [], fixed: results[b.id]?.fixed || 0 })) });
+  const dupes = prof.asr.dedupe !== false ? dedupeBlocks(results, blocks, pad) : 0;
   for (const b of blocks) {
     const r = results[b.id]; if (!r) continue;
     const a = Math.round(b.t0 * 1000 / hopMs), e = Math.round(b.t1 * 1000 / hopMs);
@@ -80,4 +76,57 @@ export default async function transcribe(project) {
   const summary = { words: words.length, blocks: blocks.length, emptyBlocks: empty, loops, dupes, namesFixed: blockInfo.reduce((s, b) => s + b.fixed, 0) };
   log(`asr: ${summary.words} Wörter · ${empty} leere Blöcke · ${loops} Schleifen entfernt · ${dupes} Pad-Wörter entfernt · ${summary.namesFixed} Namen korrigiert`);
   return { summary };
+}
+
+/** Dubletten an Blockgrenzen bereinigen (siehe Kommentar oben). results[id].pre wird ersetzt; liefert die Zahl entfernter Wörter. */
+export function dedupeBlocks(results, blocks, pad, { debug = Boolean(process.env.SCHNITT_DEBUG_DEDUPE) } = {}) {
+  let dupes = 0;
+  for (let k = 0; k + 1 < blocks.length; k++) {
+    const A = results[blocks[k].id]?.pre, B = results[blocks[k + 1].id]?.pre;
+    if (!A?.length || !B?.length || blocks[k + 1].t0 - blocks[k].t1 >= pad) continue;
+    const same = (x, y) => normTok(x.w) === normTok(y.w) || simRatio(normTok(x.w), normTok(y.w)) >= 0.8;
+    // Längste gemeinsame Wortfolge zwischen A-Schwanz (bis 6 Wörter) und B-Kopf (bis 6 Wörter), mit Versatz.
+    let best = { n: 0, ia: 0, jb: 0 };
+    const tailLen = Math.min(6, A.length - 1), headLen = Math.min(6, B.length - 1);
+    for (let ia = A.length - tailLen; ia < A.length; ia++) for (let jb = 0; jb < headLen; jb++) {
+      let n = 0; while (ia + n < A.length && jb + n < headLen && same(A[ia + n], B[jb + n])) n++;
+      if (n > best.n) best = { n, ia, jb };
+    }
+    const dropA = new Set(), dropB = new Set(), matchedA = new Set(), matchedB = new Set();
+    const gapMid = (blocks[k].t1 + blocks[k + 1].t0) / 2, heardA = blocks[k].t1 + pad - 0.05;
+    const mid = (w) => (w.t0 + w.t1) / 2;
+    // Neuansatz oder Pad-Echo? Liegen beide Fassungen der Dublette in ihrem eigenen Block (A-Fassung vor A-Ende,
+    // B-Fassung nach B-Anfang), hat der Sprecher den Satz nach kurzer Pause neu angesetzt (Roh-Take) — dann bleibt alles.
+    // Ein Echo erkennt man daran, dass mindestens eine Fassung im fremden Block liegt (arcads: 14/16 → 10/16 Takes ohne diese Prüfung).
+    if (best.n) {
+      let aIn = 0, bIn = 0;
+      for (let i = 0; i < best.n; i++) { if (mid(A[best.ia + i]) <= blocks[k].t1) aIn++; if (mid(B[best.jb + i]) >= blocks[k + 1].t0) bIn++; }
+      // Textbeweis: geht die Übereinstimmung VOR der Dublette weiter (A[ia−1] = B[jb−1]), wiederholt B den Anfang von A —
+      // ein Echo aus dem Pad kann A's Anfang nicht enthalten. Kurze Blöcke dehnen Whisper-Zeiten, deshalb zählt der Text zuerst.
+      const restartByText = best.ia > 0 && best.jb > 0 && same(A[best.ia - 1], B[best.jb - 1]);
+      if (restartByText || (aIn * 2 >= best.n && bIn * 2 >= best.n)) best = { n: 0, ia: 0, jb: 0 };
+    }
+    if (best.n) {
+      // Seite je Doppelwort: hat A das Wort gar nicht mehr gehört (Beginn hinter A-Fenster), ist es B's; sonst entscheidet
+      // die Wortmitte (Mittel beider Fassungen) gegen die Lückenmitte. Der Schnitt bleibt monoton: ab dem ersten
+      // B-Wort gehört der Rest der Dublette zu B.
+      let split = best.n;
+      for (let i = 0; i < best.n; i++) {
+        const wa = A[best.ia + i], wb = B[best.jb + i];
+        const toB = wa.t0 >= heardA || (mid(wa) + mid(wb)) / 2 >= gapMid;
+        if (toB) { split = i; break; }
+      }
+      for (let i = 0; i < best.n; i++) { matchedA.add(best.ia + i); matchedB.add(best.jb + i); if (i < split) dropB.add(best.jb + i); else dropA.add(best.ia + i); }
+      for (let i = best.ia + best.n; i < A.length; i++) dropA.add(i);   // A-Wörter hinter der Dublette: Pad-Halluzination
+      for (let j = 0; j < best.jb; j++) dropB.add(j);                   // B-Wörter vor der Dublette: Vorlauf aus dem Pad
+    }
+    // Keine Zeitregel für ungepaarte Randwörter: Whisper dehnt das letzte Wort kurzer Blöcke weit über das Fenster
+    // hinaus („Arcads“ 138,26–139,5 s in einem Block, der 138,06 endet) — jede Schwelle kostete echte Satzenden.
+    if (dropA.size >= A.length) dropA.clear(); if (dropB.size >= B.length) dropB.clear();
+    if (debug && (dropA.size || dropB.size)) log(`dedupe ${blocks[k].id}|${blocks[k + 1].id} (${blocks[k].t1.toFixed(2)}/${blocks[k + 1].t0.toFixed(2)}): A −[${[...dropA].map((i) => `${A[i].w}@${A[i].t0}-${A[i].t1}`).join(' ')}] B −[${[...dropB].map((j) => `${B[j].w}@${B[j].t0}-${B[j].t1}`).join(' ')}]${best.n ? ` Dublette ${best.n}` : ''}`);
+    results[blocks[k].id].pre = A.filter((_, i) => !dropA.has(i));
+    results[blocks[k + 1].id].pre = B.filter((_, j) => !dropB.has(j));
+    dupes += dropA.size + dropB.size;
+  }
+  return dupes;
 }
